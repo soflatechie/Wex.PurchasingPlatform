@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wex.PurchasingPlatform.Api/Wex.PurchasingPlatform.Api.csproj" />
+    <Project Path="src/Wex.PurchasingPlatform.Desktop/Wex.PurchasingPlatform.Desktop.csproj" />
+    <Project Path="src/Wex.PurchasingPlatform.Models/Wex.PurchasingPlatform.Models.csproj" />
+    <Project Path="src/Wex.PurchasingPlatform.Web/Wex.PurchasingPlatform.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Wex.PurchasingPlatform.Tests/Wex.PurchasingPlatform.Tests.csproj" />
+  </Folder>
+</Solution>

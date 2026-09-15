@@ -31,8 +31,9 @@ Wex.PurchasingPlatform.Api/
 ├── Controllers/         PurchaseTransactionsController, CurrenciesController, ExchangeRatesController
 ├── Services/            IPurchaseTransactionService, ICurrencyConversionService, IExchangeRateSyncService
 │                        + their implementations, ExchangeRateSyncHostedService
-├── Repositories/        IRepository<T>, Repository<T>, IPurchaseTransactionRepository,
-│                        IExchangeRateRepository + their implementations
+├── Repositories/
+│   ├── Interfaces/      IRepository<T>, IPurchaseTransactionRepository, IExchangeRateRepository
+│   └── Implementation/  Repository<T>, PurchaseTransactionRepository, ExchangeRateRepository
 ├── Entities/            PurchaseTransaction, ExchangeRateQuote
 ├── Data/                AppDbContext, EF Core configuration, migrations
 ├── ExternalServices/    IExchangeRateProvider, TreasuryExchangeRateClient
@@ -194,7 +195,7 @@ The Treasury dataset is quarterly from March 2001 onward at roughly 150–190 ro
 All C# code follows `CodingStandards.txt`. Standards that directly shape this design:
 
 - Async methods are suffixed `Async` (§4/§5 already reflect this: `GetByIdAsync`, `SyncAsync`, etc.).
-- Constructor injection only — every service and repository takes its dependencies through its constructor, never via `new` (§4/§5).
+- Constructor injection only — every service and repository takes its dependencies through its constructor, never via `new` (§4/§5). Injected dependencies are declared as C# primary constructor parameters rather than a separate explicit constructor body.
 - One type per file, file-scoped namespaces, explicit access modifiers on every member.
 - No swallowed exceptions — the exception-handling middleware (§9) logs and maps every exception it catches; it never discards one.
 - No magic numbers/strings — the 3-month staleness window (`InitialDesign.md` §2.2) and the description length limit (50 chars) are named constants, not literals repeated through the code.
@@ -211,4 +212,6 @@ All C# code follows `CodingStandards.txt`. Standards that directly shape this de
 - Sync bookkeeping: no separate sync-state table; the watermark is `MAX(RecordDate)`.
 - Added §11, tying the design to `CodingStandards.txt`.
 - Added logging (§9) using `Microsoft.Extensions.Logging`.
+- `Repositories/` split into `Interfaces/` and `Implementation/` subfolders.
+- Constructor-injected classes use C# primary constructors.
 

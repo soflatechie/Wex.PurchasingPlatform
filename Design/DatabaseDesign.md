@@ -11,9 +11,9 @@ The sync watermark is `MAX(RecordDate)` over `ExchangeRateQuote` (`TechnicalDesi
 
 `PurchaseTransaction` is not foreign-keyed to `ExchangeRateQuote`. A conversion is computed at request time from `ExchangeRateQuote` as of the transaction's date; nothing is written back onto the transaction.
 
-![Database schema](./DatabaseDesign.png)
+![Database schema](./DatabaseDesign.svg)
 
-The image above is a rendered copy of the Mermaid diagram below, for anyone viewing this file without Mermaid support. Edit the Mermaid source, not the image, and re-render if the schema changes.
+The image above is an SVG (scales to any zoom level without blurring) rendered from the Mermaid diagram below, for anyone viewing this file without Mermaid support. A high-resolution `DatabaseDesign.png` is also in this folder for tools that don't display SVG well (e.g., pasting into Office documents). Edit the Mermaid source, not the images, and re-render both if the schema changes.
 
 ```mermaid
 erDiagram

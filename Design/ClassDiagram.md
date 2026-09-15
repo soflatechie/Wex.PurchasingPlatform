@@ -4,9 +4,9 @@ Companion to [`TechnicalDesign.md`](./TechnicalDesign.md). Covers the controller
 
 **Note on generics:** Mermaid's class diagram syntax renders `IRepository~TEntity~` as an open generic. In code, `IPurchaseTransactionRepository` and `IExchangeRateRepository` each close it over a concrete entity (`IRepository<PurchaseTransaction>` and `IRepository<ExchangeRateQuote>` respectively) — shown generically here for readability.
 
-![Class diagram](./ClassDiagram.png)
+![Class diagram](./ClassDiagram.svg)
 
-The image above is a rendered copy of the Mermaid diagram below, for anyone viewing this file without Mermaid support. Edit the Mermaid source, not the image, and re-render if the diagram changes.
+The image above is an SVG (scales to any zoom level without blurring) rendered from the Mermaid diagram below, for anyone viewing this file without Mermaid support. A high-resolution `ClassDiagram.png` is also in this folder for tools that don't display SVG well (e.g., pasting into Office documents). Edit the Mermaid source, not the images, and re-render both if the diagram changes.
 
 ```mermaid
 classDiagram

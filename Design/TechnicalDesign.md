@@ -5,7 +5,7 @@ This document builds on `InitialDesign.md` (problem statement, technology choice
 - [`ClassDiagram.md`](./ClassDiagram.md) — full class diagram (Mermaid)
 - [`DatabaseDesign.md`](./DatabaseDesign.md) — schema (Mermaid ER diagram)
 - [`ImplementationPhases.md`](./ImplementationPhases.md) — phased build plan
-- [`CodingStandards.txt`](./CodingStandards.txt) — C# coding standards all code follows (see §11)
+- [`CodingStandards.md`](./CodingStandards.md) — C# coding standards all code follows (see §11)
 
 > **Outstanding item:** rounding convention is still unconfirmed with the client (see `InitialDesign.md` §5.2). `MoneyRounding.ToCurrency()` implements `AwayFromZero` as the default.
 
@@ -202,7 +202,7 @@ No exchange-rate *values* are ever stored locally. The Treasury dataset is quart
 
 ## 11. Coding standards
 
-All C# code follows `CodingStandards.txt`. Standards that directly shape this design:
+All C# code follows `CodingStandards.md`. Standards that directly shape this design:
 
 - Async methods are suffixed `Async` (§4/§5 already reflect this: `GetByIdAsync`, `SyncAsync`, etc.).
 - Constructor injection only — every service and repository takes its dependencies through its constructor, never via `new` (§4/§5). Injected dependencies are declared as C# primary constructor parameters rather than a separate explicit constructor body.

@@ -1,0 +1,13 @@
+# Claude usage steps and methodology
+
+I used the Claude code cli  for most of this project.  These are the steps taken to build the project.
+
+- Initial prompt with general idea and the requirements from the customer, asking the model to come up with an intitial design.  That design was not a technical one just an overall design based on my initialprompt.txt file, which included the basic idea, the hard requirements, and my suggestions about the platforms and technology to use
+- Once initial design was  written to initialdesign.md, I reviewed it to be sure it was what was needed.  I made some changes by prompting AI what to change. AI suggested that Angular not be used as it could not be considered plug and play, and I also made some changes to be sure the repository pattern was used, and that we ironed out any open questions or concerns.
+- Next phase was to create a technical design - technicaldesign.md.  I asked AI to create separate files for both the class diagram and database diagram.  I reviewed the technical design and then asked AI to create another document that broke the code implementation into phases.  Then to use that file - implementationphases.md, to bring coding, and stop coding after each phase so I could review and approve
+- CodingStandards.md was provided so that AI could use that when building code.  Especially across sessions,  I felt it was important that AI always refer to a coding standards document to ensure it does not drift away from acceptable code.
+- During the implementation, I found the following things that had to be changed:
+  - The number and types of projects within the solution was over-engineered, and AI had broken up the AI into too many projects.  I had it simplify into Api, models, and Testing projects.
+  - AI did not properly design the repository pattern I expected.  I had told it I wanted all repository classes to inherit from one interface, to make sure we did not have to create a new interface for each repository.  Somehow it was still create an interface for each repository.
+  - AI wanted to retrieve the entire 20K table from the treasury api, and then use it locally.  This did not seem like it was needed.  I did not like the idea that we could possibly have changes in the dataset that we did not have access to because the data was stale.  I changed it instead to retrieve the one row of data we needed real time when doing a conversion.
+  - The front end was not displaying all of the data required, and I realized that the transaction number was not in a format that made sense to display to a user, since the primary key was a Guid.  Added another database field for Transaction Number, and changed the UI to show Transaction Date.

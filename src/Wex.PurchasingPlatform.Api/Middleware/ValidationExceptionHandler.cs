@@ -11,13 +11,15 @@ public class ValidationExceptionHandler(ILogger<ValidationExceptionHandler> logg
         if (exception is not ValidationException validationException)
             return false;
 
-        logger.LogWarning("Request validation failed: {Errors}", validationException.Message);
-
         var errors = validationException.Errors
             .GroupBy(failure => failure.PropertyName)
             .ToDictionary(
                 group => group.Key,
                 group => group.Select(failure => failure.ErrorMessage).ToArray());
+
+        logger.LogWarning(
+            "Request validation failed: {Errors}",
+            string.Join("; ", errors.SelectMany(field => field.Value.Select(message => $"{field.Key}: {message}"))));
 
         var problemDetails = new ValidationProblemDetails(errors)
         {

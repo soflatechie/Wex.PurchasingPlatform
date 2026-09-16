@@ -6,7 +6,9 @@ namespace Wex.PurchasingPlatform.Api.Controllers;
 
 [ApiController]
 [Route("api/purchasetransactions")]
-public class PurchaseTransactionsController(IPurchaseTransactionService transactionService) : ControllerBase
+public class PurchaseTransactionsController(
+    IPurchaseTransactionService transactionService,
+    ICurrencyConversionService conversionService) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<PurchaseTransactionDto>> Create(
@@ -60,5 +62,20 @@ public class PurchaseTransactionsController(IPurchaseTransactionService transact
             return NotFound();
 
         return NoContent();
+    }
+
+    [HttpGet("{id:guid}/conversion")]
+    public async Task<ActionResult<ConvertedPurchaseTransactionDto>> GetConversion(
+        Guid id,
+        [FromQuery] string country,
+        [FromQuery] string currency,
+        CancellationToken cancellationToken)
+    {
+        var convertedTransaction = await conversionService.GetConvertedAsync(id, country, currency, cancellationToken);
+
+        if (convertedTransaction is null)
+            return NotFound();
+
+        return Ok(convertedTransaction);
     }
 }

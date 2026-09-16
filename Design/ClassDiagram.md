@@ -2,7 +2,7 @@
 
 Companion to [`TechnicalDesign.md`](./TechnicalDesign.md). Covers the controller, service, repository, entity, and DTO layers, and how they connect. Everything except the DTOs (`ConvertedPurchaseTransactionDto` etc., in the `Models` project) lives in the `Api` project as folders — see `TechnicalDesign.md` §1–§2 for the physical layout; this diagram shows the logical layering regardless of which folder each class sits in. `Guid`/`DateOnly`/`decimal` are used throughout for identifiers, dates, and money per the financial-rigor requirement.
 
-**Note on generics:** Mermaid's class diagram syntax renders `IRepository~TEntity~` as an open generic. In code, `IPurchaseTransactionRepository` and `ICurrencyOptionRepository` each close it over a concrete entity (`IRepository<PurchaseTransaction>` and `IRepository<CurrencyOption>` respectively) — shown generically here for readability.
+**Note on generics:** Mermaid's class diagram syntax renders `IRepository~TEntity~` and `Repository~TEntity~` as open generics. In code, `PurchaseTransactionRepository` and `CurrencyOptionRepository` each close `Repository<TEntity>` over a concrete entity (`Repository<PurchaseTransaction>` and `Repository<CurrencyOption>` respectively) — shown generically here for readability. There is deliberately no per-entity repository interface (`IPurchaseTransactionRepository`, `ICurrencyOptionRepository`): the one generic `IRepository<TEntity>` is the only repository interface in the codebase, and any entity-specific queries live as plain methods directly on the concrete subclass.
 
 ![Class diagram](./ClassDiagram.svg)
 
@@ -41,7 +41,7 @@ classDiagram
     }
 
     class PurchaseTransactionService {
-        -IPurchaseTransactionRepository repository
+        -PurchaseTransactionRepository repository
         -IValidator~CreatePurchaseTransactionRequest~ createValidator
         -IValidator~UpdatePurchaseTransactionRequest~ updateValidator
     }
@@ -49,12 +49,13 @@ classDiagram
     class ICurrencyConversionService {
         <<interface>>
         +GetConvertedAsync(Guid transactionId, string country, string currencyName) Task~ConvertedPurchaseTransactionDto~
+        +GetAvailableCountriesAsync() Task~List~string~~
         +GetAvailableCurrenciesAsync(string country, DateOnly transactionDate) Task~List~CurrencyOptionDto~~
     }
 
     class CurrencyConversionService {
-        -IPurchaseTransactionRepository transactionRepository
-        -ICurrencyOptionRepository currencyOptionRepository
+        -PurchaseTransactionRepository transactionRepository
+        -CurrencyOptionRepository currencyOptionRepository
         -IExchangeRateProvider exchangeRateProvider
         -SelectRate(ExchangeRateLookupResult quote, DateOnly transactionDate) RateSelectionResult
     }
@@ -71,14 +72,14 @@ classDiagram
     }
 
     class CurrencyOptionCacheService {
-        -ICurrencyOptionRepository currencyOptionRepository
+        -CurrencyOptionRepository currencyOptionRepository
         -IExchangeRateProvider exchangeRateProvider
     }
 
     class CurrencyOptionCacheHostedService {
         <<BackgroundService>>
         -ICurrencyOptionCacheService cacheService
-        -ICurrencyOptionRepository currencyOptionRepository
+        -CurrencyOptionRepository currencyOptionRepository
         +StartAsync(CancellationToken ct) Task
     }
 
@@ -96,19 +97,15 @@ classDiagram
         #AppDbContext context
     }
 
-    class IPurchaseTransactionRepository {
-        <<interface>>
+    class PurchaseTransactionRepository {
+        +GetByIdAsync(object id) Task~PurchaseTransaction~
+        +DeleteAsync(object id) Task~bool~
     }
 
-    class PurchaseTransactionRepository
-
-    class ICurrencyOptionRepository {
-        <<interface>>
+    class CurrencyOptionRepository {
         +GetByCountryAsync(string country) Task~List~CurrencyOption~~
         +ReplaceAllAsync(List~CurrencyOption~ options) Task
     }
-
-    class CurrencyOptionRepository
 
     %% ---------- External integration ----------
     class IExchangeRateProvider {
@@ -130,6 +127,7 @@ classDiagram
 
     %% ---------- Domain entities ----------
     class PurchaseTransaction {
+        +int TransactionNumber
         +Guid Id
         +string Description
         +DateOnly TransactionDate
@@ -157,6 +155,7 @@ classDiagram
     }
 
     class PurchaseTransactionDto {
+        +int TransactionNumber
         +Guid Id
         +string Description
         +DateOnly TransactionDate
@@ -164,6 +163,7 @@ classDiagram
     }
 
     class ConvertedPurchaseTransactionDto {
+        +int TransactionNumber
         +Guid Id
         +string Description
         +DateOnly TransactionDate
@@ -190,26 +190,22 @@ classDiagram
     IPurchaseTransactionService <|.. PurchaseTransactionService
     ICurrencyConversionService <|.. CurrencyConversionService
 
-    PurchaseTransactionService --> IPurchaseTransactionRepository
-    CurrencyConversionService --> IPurchaseTransactionRepository
-    CurrencyConversionService --> ICurrencyOptionRepository
+    PurchaseTransactionService --> PurchaseTransactionRepository
+    CurrencyConversionService --> PurchaseTransactionRepository
+    CurrencyConversionService --> CurrencyOptionRepository
     CurrencyConversionService --> IExchangeRateProvider
     CurrencyConversionService ..> RateSelectionResult
     CurrencyConversionService ..> ExchangeRateLookupResult
 
     ICurrencyOptionCacheService <|.. CurrencyOptionCacheService
     CurrencyOptionCacheHostedService --> ICurrencyOptionCacheService
-    CurrencyOptionCacheHostedService --> ICurrencyOptionRepository
-    CurrencyOptionCacheService --> ICurrencyOptionRepository
+    CurrencyOptionCacheHostedService --> CurrencyOptionRepository
+    CurrencyOptionCacheService --> CurrencyOptionRepository
     CurrencyOptionCacheService --> IExchangeRateProvider
 
-    IRepository~TEntity~ <|-- IPurchaseTransactionRepository
-    IRepository~TEntity~ <|-- ICurrencyOptionRepository
     IRepository~TEntity~ <|.. Repository~TEntity~
     Repository~TEntity~ <|-- PurchaseTransactionRepository
     Repository~TEntity~ <|-- CurrencyOptionRepository
-    IPurchaseTransactionRepository <|.. PurchaseTransactionRepository
-    ICurrencyOptionRepository <|.. CurrencyOptionRepository
 
     IExchangeRateProvider <|.. TreasuryExchangeRateClient
 
@@ -230,3 +226,6 @@ classDiagram
 - ~~Added `ExchangeRateSyncService`, `ExchangeRateSyncHostedService`, and `ExchangeRatesController` for the proactive exchange-rate sync.~~
 - ~~Removed the `ExchangeRateSyncState` entity; its watermark is now `IExchangeRateRepository.GetLatestRecordDateAsync()`.~~
 - Classes reorganized from separate class-library projects into folders within one `Api` project; the diagram's classes and relationships are unchanged by this, only where they physically live (`TechnicalDesign.md` §1–§2).
+- Added `ICurrencyConversionService.GetAvailableCountriesAsync()`, backing `CurrenciesController.GetCountries()` — this diagram previously omitted the interface method `GetCountries()` actually calls.
+- Removed `IPurchaseTransactionRepository` and `ICurrencyOptionRepository` — both added nothing over the single generic `IRepository<TEntity>` (the first was an empty marker interface; the second's two extra methods now live directly on the concrete `CurrencyOptionRepository` class). `PurchaseTransactionRepository` and `CurrencyOptionRepository` are now the only repository types services depend on, registered in DI as themselves rather than against a per-entity interface. `Repository<TEntity>`'s methods are `virtual` so these concrete classes stay mockable in unit tests without an interface.
+- Added `PurchaseTransaction.TransactionNumber` (and to `PurchaseTransactionDto`/`ConvertedPurchaseTransactionDto`) — a sequential integer for display, since a GUID isn't something worth showing a user. `TransactionNumber`, not `Id`, is now the actual database primary key (see `DatabaseDesign.md`), so `PurchaseTransactionRepository` overrides `GetByIdAsync`/`DeleteAsync` to look up by `Id` instead of relying on the base class's primary-key-based lookup. `Id` is otherwise unchanged — still the identifier in every route, DTO, and front-end reference.

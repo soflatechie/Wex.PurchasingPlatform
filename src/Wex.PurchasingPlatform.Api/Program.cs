@@ -1,9 +1,12 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Wex.PurchasingPlatform.Api.Configuration;
 using Wex.PurchasingPlatform.Api.Data;
+using Wex.PurchasingPlatform.Api.ExternalServices.Implementation;
+using Wex.PurchasingPlatform.Api.ExternalServices.Interfaces;
 using Wex.PurchasingPlatform.Api.Middleware;
 using Wex.PurchasingPlatform.Api.Repositories.Implementation;
-using Wex.PurchasingPlatform.Api.Repositories.Interfaces;
 using Wex.PurchasingPlatform.Api.Services.Implementation;
 using Wex.PurchasingPlatform.Api.Services.Interfaces;
 using Wex.PurchasingPlatform.Api.Validation;
@@ -18,15 +21,28 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddScoped<IPurchaseTransactionRepository, PurchaseTransactionRepository>();
-builder.Services.AddScoped<ICurrencyOptionRepository, CurrencyOptionRepository>();
+builder.Services.AddScoped<PurchaseTransactionRepository>();
+builder.Services.AddScoped<CurrencyOptionRepository>();
 
 builder.Services.AddScoped<IValidator<CreatePurchaseTransactionRequest>, CreatePurchaseTransactionRequestValidator>();
 builder.Services.AddScoped<IValidator<UpdatePurchaseTransactionRequest>, UpdatePurchaseTransactionRequestValidator>();
 
 builder.Services.AddScoped<IPurchaseTransactionService, PurchaseTransactionService>();
 
+builder.Services.Configure<TreasuryOptions>(builder.Configuration.GetSection(TreasuryOptions.SectionName));
+
+builder.Services.AddHttpClient<IExchangeRateProvider, TreasuryExchangeRateClient>((serviceProvider, client) =>
+{
+    var treasuryOptions = serviceProvider.GetRequiredService<IOptions<TreasuryOptions>>().Value;
+    client.BaseAddress = new Uri(treasuryOptions.BaseUrl);
+});
+
+builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService>();
+builder.Services.AddScoped<ICurrencyOptionCacheService, CurrencyOptionCacheService>();
+builder.Services.AddHostedService<CurrencyOptionCacheHostedService>();
+
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddExceptionHandler<ExchangeRateExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();
@@ -52,7 +68,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-public partial class Program
-{
-}

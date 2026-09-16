@@ -41,9 +41,9 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
 
             modelBuilder.Entity("Wex.PurchasingPlatform.Api.Entities.PurchaseTransaction", b =>
                 {
-                    b.Property<Guid>("Id")
+                    b.Property<int>("TransactionNumber")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
@@ -51,6 +51,9 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("PurchaseAmountUsd")
@@ -63,7 +66,10 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("TEXT");
 
-                    b.HasKey("Id");
+                    b.HasKey("TransactionNumber");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
 
                     b.ToTable("PurchaseTransactions");
                 });

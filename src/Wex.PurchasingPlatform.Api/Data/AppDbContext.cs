@@ -17,7 +17,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     {
         modelBuilder.Entity<PurchaseTransaction>(entity =>
         {
-            entity.HasKey(transaction => transaction.Id);
+            // TransactionNumber (not Id) is the database primary key so SQLite can generate it natively
+            // via its rowid/AUTOINCREMENT mechanism, giving users a short, sequential number to reference
+            // instead of a GUID. Id remains the API-facing unique identifier everywhere else in the app.
+            entity.HasKey(transaction => transaction.TransactionNumber);
+            entity.Property(transaction => transaction.TransactionNumber).ValueGeneratedOnAdd();
+
+            entity.HasIndex(transaction => transaction.Id).IsUnique();
 
             entity.Property(transaction => transaction.Description)
                 .IsRequired()

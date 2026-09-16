@@ -29,6 +29,8 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
                 name: "PurchaseTransactions",
                 columns: table => new
                 {
+                    TransactionNumber = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     Description = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     TransactionDate = table.Column<DateOnly>(type: "TEXT", nullable: false),
@@ -38,13 +40,19 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PurchaseTransactions", x => x.Id);
+                    table.PrimaryKey("PK_PurchaseTransactions", x => x.TransactionNumber);
                 });
 
             migrationBuilder.CreateIndex(
                 name: "IX_CurrencyOptions_Country_CurrencyName",
                 table: "CurrencyOptions",
                 columns: new[] { "Country", "CurrencyName" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PurchaseTransactions_Id",
+                table: "PurchaseTransactions",
+                column: "Id",
                 unique: true);
         }
 

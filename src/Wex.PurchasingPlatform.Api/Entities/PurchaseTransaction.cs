@@ -2,6 +2,8 @@ namespace Wex.PurchasingPlatform.Api.Entities;
 
 public class PurchaseTransaction
 {
+    public int TransactionNumber { get; set; }
+
     public Guid Id { get; set; }
 
     public string Description { get; set; } = string.Empty;

@@ -2,14 +2,14 @@ using FluentValidation;
 using Mapster;
 using Wex.PurchasingPlatform.Api.Common;
 using Wex.PurchasingPlatform.Api.Entities;
-using Wex.PurchasingPlatform.Api.Repositories.Interfaces;
+using Wex.PurchasingPlatform.Api.Repositories.Implementation;
 using Wex.PurchasingPlatform.Api.Services.Interfaces;
 using Wex.PurchasingPlatform.Models;
 
 namespace Wex.PurchasingPlatform.Api.Services.Implementation;
 
 public class PurchaseTransactionService(
-    IPurchaseTransactionRepository repository,
+    PurchaseTransactionRepository repository,
     IValidator<CreatePurchaseTransactionRequest> createValidator,
     IValidator<UpdatePurchaseTransactionRequest> updateValidator) : IPurchaseTransactionService
 {

@@ -2,15 +2,16 @@ using FluentValidation;
 using FluentValidation.Results;
 using Moq;
 using Wex.PurchasingPlatform.Api.Entities;
-using Wex.PurchasingPlatform.Api.Repositories.Interfaces;
+using Wex.PurchasingPlatform.Api.Repositories.Implementation;
 using Wex.PurchasingPlatform.Api.Services.Implementation;
 using Wex.PurchasingPlatform.Models;
+using Wex.PurchasingPlatform.Tests.TestDoubles;
 
 namespace Wex.PurchasingPlatform.Tests.Services;
 
 public class PurchaseTransactionServiceTests
 {
-    private readonly Mock<IPurchaseTransactionRepository> _repository = new();
+    private readonly Mock<PurchaseTransactionRepository> _repository = new(TestDbContextFactory.CreateUnconfigured());
     private readonly Mock<IValidator<CreatePurchaseTransactionRequest>> _createValidator = new();
     private readonly Mock<IValidator<UpdatePurchaseTransactionRequest>> _updateValidator = new();
     private readonly PurchaseTransactionService _service;

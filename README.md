@@ -19,12 +19,17 @@ Please see the following documents:
 
 ## Running it
 
-### 1. Start the API
+### 1. Get the code
+```
+Clone the code to your local machine using the Code option above
+```
+
+### 2. Start the API
 ```
 dotnet run --project src/Wex.PurchasingPlatform.Api
 ```
 
-### 2. Start a front end
+### 3. Start a front end
 
 **Desktop (WinForms, Windows only):**
 

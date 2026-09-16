@@ -36,3 +36,156 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+body {
+    font-family: Segoe UI, Tahoma, Arial, sans-serif;
+    margin: 20px;
+}
+
+.toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.toolbar button {
+    padding: 6px 16px;
+}
+
+.transactions-grid {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.transactions-grid th,
+.transactions-grid td {
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    text-align: left;
+}
+
+.transactions-grid tbody tr:hover {
+    background-color: #f0f4f8;
+    cursor: pointer;
+}
+
+.transactions-grid tbody tr.selected {
+    background-color: #cfe3fb;
+}
+
+.alert {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.alert-error {
+    background-color: #fdecea;
+    color: #a80000;
+    border: 1px solid #a80000;
+}
+
+.alert-info {
+    background-color: #e8f0fe;
+    color: #1a4b8c;
+    border: 1px solid #1a4b8c;
+}
+
+.alert button {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-dialog {
+    background-color: white;
+    padding: 20px;
+    border-radius: 4px;
+    min-width: 320px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.conversion-dialog {
+    min-width: 480px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.form-row label {
+    width: 160px;
+}
+
+.dialog-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.confirm-dialog p {
+    margin-bottom: 16px;
+}
+
+.conversion-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.results-groupbox {
+    border: 1px solid #999;
+    border-radius: 4px;
+    padding: 12px 16px 16px;
+}
+
+.results-groupbox legend {
+    padding: 0 6px;
+    font-weight: 600;
+}
+
+.results-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.results-row label {
+    width: 160px;
+}
+
+.result-value {
+    border: 1px solid #ccc;
+    padding: 4px 8px;
+    min-width: 220px;
+    min-height: 1em;
+    display: inline-block;
+}
+
+.converted-amount {
+    font-weight: bold;
+}
+
+.stale-warning {
+    color: darkorange;
+    margin-top: 8px;
+}

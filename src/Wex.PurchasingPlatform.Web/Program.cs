@@ -1,3 +1,4 @@
+using Wex.PurchasingPlatform.Web.ApiClient;
 using Wex.PurchasingPlatform.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -5,6 +6,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddHttpClient<PurchasingApiClient>(httpClient =>
+{
+    httpClient.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"]!);
+});
 
 var app = builder.Build();
 

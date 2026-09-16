@@ -1,0 +1,64 @@
+@namespace Wex.PurchasingPlatform.Web.Components.Dialogs
+
+<div class="modal-overlay">
+    <div class="modal-dialog">
+        <h2>@(Transaction is null ? "New Transaction" : "Edit Transaction")</h2>
+
+        @if (_validationMessage is not null)
+        {
+            <div class="alert alert-error">@_validationMessage</div>
+        }
+
+        <div class="form-row">
+            <label>Description:</label>
+            <input type="text" maxlength="50" @bind="_description" @bind:event="oninput" />
+        </div>
+
+        <div class="form-row">
+            <label>Transaction date:</label>
+            <input type="date" @bind="_transactionDate" @bind:event="oninput" />
+        </div>
+
+        <div class="form-row">
+            <label>Purchase amount (USD):</label>
+            <input type="number" min="0" max="1000000000" step="0.01" @bind="_purchaseAmountUsd" @bind:event="oninput" />
+        </div>
+
+        <div class="dialog-buttons">
+            <button type="button" @onclick="OkClickedAsync">OK</button>
+            <button type="button" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public PurchaseTransactionDto? Transaction { get; set; }
+    [Parameter] public EventCallback<(string Description, DateOnly TransactionDate, decimal PurchaseAmountUsd)> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _description = string.Empty;
+    private DateOnly _transactionDate = DateOnly.FromDateTime(DateTime.Today);
+    private decimal _purchaseAmountUsd;
+    private string? _validationMessage;
+
+    protected override void OnInitialized()
+    {
+        if (Transaction is null)
+            return;
+
+        _description = Transaction.Description;
+        _transactionDate = Transaction.TransactionDate;
+        _purchaseAmountUsd = Transaction.PurchaseAmountUsd;
+    }
+
+    private async Task OkClickedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_description))
+        {
+            _validationMessage = "Description is required.";
+            return;
+        }
+
+        await OnSave.InvokeAsync((_description.Trim(), _transactionDate, _purchaseAmountUsd));
+    }
+}

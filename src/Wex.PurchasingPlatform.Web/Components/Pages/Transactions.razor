@@ -1,0 +1,218 @@
+@page "/"
+@rendermode InteractiveServer
+@inject PurchasingApiClient ApiClient
+
+<PageTitle>WEX Purchasing Platform</PageTitle>
+
+<h1>WEX Purchasing Platform</h1>
+
+@if (_errorMessage is not null)
+{
+    <div class="alert alert-error">
+        <span>@_errorMessage</span>
+        <button type="button" @onclick="() => _errorMessage = null">&times;</button>
+    </div>
+}
+
+@if (_infoMessage is not null)
+{
+    <div class="alert alert-info">
+        <span>@_infoMessage</span>
+        <button type="button" @onclick="() => _infoMessage = null">&times;</button>
+    </div>
+}
+
+<div class="toolbar">
+    <button type="button" @onclick="OnNewClicked">New</button>
+    <button type="button" @onclick="OnEditClicked">Edit</button>
+    <button type="button" @onclick="OnDeleteClicked">Delete</button>
+    <button type="button" @onclick="OnConvertClicked">Convert...</button>
+    <button type="button" @onclick="RefreshTransactionsAsync">Refresh</button>
+</div>
+
+@if (_transactions is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table class="transactions-grid">
+        <thead>
+            <tr>
+                <th>Transaction #</th>
+                <th>Description</th>
+                <th>Transaction Date</th>
+                <th>Amount (USD)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var transaction in _transactions)
+            {
+                <tr class="@(transaction == _selectedTransaction ? "selected" : null)" @onclick="() => SelectTransaction(transaction)">
+                    <td>@FormatTransactionNumber(transaction.TransactionNumber)</td>
+                    <td>@transaction.Description</td>
+                    <td>@transaction.TransactionDate.ToString("yyyy-MM-dd")</td>
+                    <td>@transaction.PurchaseAmountUsd.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_showEditDialog)
+{
+    <TransactionEditDialog Transaction="_editingTransaction"
+                            OnSave="HandleEditSavedAsync"
+                            OnCancel="() => _showEditDialog = false" />
+}
+
+@if (_showDeleteConfirm && _selectedTransaction is not null)
+{
+    <div class="modal-overlay">
+        <div class="modal-dialog confirm-dialog">
+            <p>Delete "@_selectedTransaction.Description"?</p>
+            <div class="dialog-buttons">
+                <button type="button" @onclick="ConfirmDeleteAsync">Yes</button>
+                <button type="button" @onclick="() => _showDeleteConfirm = false">No</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showConversionDialog && _selectedTransaction is not null)
+{
+    <ConversionDialog Transaction="_selectedTransaction" OnClose="() => _showConversionDialog = false" />
+}
+
+@code {
+    private IReadOnlyList<PurchaseTransactionDto>? _transactions;
+    private PurchaseTransactionDto? _selectedTransaction;
+    private string? _errorMessage;
+    private string? _infoMessage;
+    private bool _showEditDialog;
+    private PurchaseTransactionDto? _editingTransaction;
+    private bool _showDeleteConfirm;
+    private bool _showConversionDialog;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshTransactionsAsync();
+    }
+
+    private void SelectTransaction(PurchaseTransactionDto transaction)
+    {
+        _selectedTransaction = transaction;
+    }
+
+    private void OnNewClicked()
+    {
+        _editingTransaction = null;
+        _showEditDialog = true;
+    }
+
+    private void OnEditClicked()
+    {
+        if (_selectedTransaction is null)
+        {
+            ShowInfo("Select a transaction to edit.");
+            return;
+        }
+
+        _editingTransaction = _selectedTransaction;
+        _showEditDialog = true;
+    }
+
+    private void OnDeleteClicked()
+    {
+        if (_selectedTransaction is null)
+        {
+            ShowInfo("Select a transaction to delete.");
+            return;
+        }
+
+        _showDeleteConfirm = true;
+    }
+
+    private void OnConvertClicked()
+    {
+        if (_selectedTransaction is null)
+        {
+            ShowInfo("Select a transaction to convert.");
+            return;
+        }
+
+        _showConversionDialog = true;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        _showDeleteConfirm = false;
+
+        if (_selectedTransaction is null)
+            return;
+
+        try
+        {
+            await ApiClient.DeleteTransactionAsync(_selectedTransaction.Id);
+            _selectedTransaction = null;
+            await RefreshTransactionsAsync();
+        }
+        catch (PurchasingApiException ex)
+        {
+            ShowError(ex.Message);
+        }
+    }
+
+    private async Task HandleEditSavedAsync((string Description, DateOnly TransactionDate, decimal PurchaseAmountUsd) values)
+    {
+        _showEditDialog = false;
+
+        try
+        {
+            if (_editingTransaction is null)
+            {
+                await ApiClient.CreateTransactionAsync(new CreatePurchaseTransactionRequest(
+                    values.Description,
+                    values.TransactionDate,
+                    values.PurchaseAmountUsd));
+            }
+            else
+            {
+                await ApiClient.UpdateTransactionAsync(_editingTransaction.Id, new UpdatePurchaseTransactionRequest(
+                    values.Description,
+                    values.TransactionDate,
+                    values.PurchaseAmountUsd));
+            }
+
+            await RefreshTransactionsAsync();
+        }
+        catch (PurchasingApiException ex)
+        {
+            ShowError(ex.Message);
+        }
+    }
+
+    private async Task RefreshTransactionsAsync()
+    {
+        try
+        {
+            _transactions = await ApiClient.GetTransactionsAsync();
+        }
+        catch (PurchasingApiException ex)
+        {
+            ShowError(ex.Message);
+        }
+    }
+
+    private static string FormatTransactionNumber(int transactionNumber) => $"PT-{transactionNumber:000000}";
+
+    private void ShowError(string message)
+    {
+        _errorMessage = message;
+    }
+
+    private void ShowInfo(string message)
+    {
+        _infoMessage = message;
+    }
+}

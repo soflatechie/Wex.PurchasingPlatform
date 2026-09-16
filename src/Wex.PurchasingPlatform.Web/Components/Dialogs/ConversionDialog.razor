@@ -1,0 +1,145 @@
+@namespace Wex.PurchasingPlatform.Web.Components.Dialogs
+@inject PurchasingApiClient ApiClient
+
+<div class="modal-overlay">
+    <div class="modal-dialog conversion-dialog">
+        <h2>Convert "@Transaction.Description"</h2>
+
+        @if (_errorMessage is not null)
+        {
+            <div class="alert alert-error">@_errorMessage</div>
+        }
+
+        <div class="conversion-picker-row">
+            <label>Country:</label>
+            <select @bind="_selectedCountry" @bind:after="OnCountryChangedAsync">
+                <option value="">Select...</option>
+                @if (_countries is not null)
+                {
+                    @foreach (var country in _countries)
+                    {
+                        <option value="@country">@country</option>
+                    }
+                }
+            </select>
+
+            <label>Currency:</label>
+            <select @bind="_selectedCurrency">
+                <option value="">Select...</option>
+                @if (_currencies is not null)
+                {
+                    @foreach (var currency in _currencies)
+                    {
+                        <option value="@currency.CurrencyName">@currency.CurrencyName</option>
+                    }
+                }
+            </select>
+
+            <button type="button" @onclick="ConvertClickedAsync">Convert</button>
+        </div>
+
+        <fieldset class="results-groupbox">
+            <legend>Conversion Results</legend>
+
+            <div class="results-row">
+                <label>Transaction Number:</label>
+                <span class="result-value">@(_result?.TransactionNumber.ToString() ?? string.Empty)</span>
+            </div>
+
+            <div class="results-row">
+                <label>Amount (USD):</label>
+                <span class="result-value">@(_result is null ? string.Empty : _result.PurchaseAmountUsd.ToString("N2"))</span>
+            </div>
+
+            <div class="results-row">
+                <label>Exchange rate:</label>
+                <span class="result-value">@(_result is null ? string.Empty : _result.ExchangeRate.ToString("0.####"))</span>
+            </div>
+
+            <div class="results-row">
+                <label>Converted amount:</label>
+                <span class="result-value converted-amount">@(_result is null ? string.Empty : $"{_result.ConvertedAmount:N2} {_result.CurrencyName}")</span>
+            </div>
+
+            <div class="results-row">
+                <label>Transaction Date:</label>
+                <span class="result-value">@(_result is null ? string.Empty : _result.TransactionDate.ToString("MM-dd-yyyy"))</span>
+            </div>
+
+            <div class="results-row">
+                <label>Rate Date:</label>
+                <span class="result-value">@(_result is null ? string.Empty : _result.RateDate.ToString("MM-dd-yyyy"))</span>
+            </div>
+
+            @if (_result is { IsStale: true })
+            {
+                <p class="stale-warning">This rate is more than 3 months old.</p>
+            }
+        </fieldset>
+
+        <div class="dialog-buttons">
+            <button type="button" @onclick="() => OnClose.InvokeAsync()">Close</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public PurchaseTransactionDto Transaction { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private IReadOnlyList<string>? _countries;
+    private IReadOnlyList<CurrencyOptionDto>? _currencies;
+    private string _selectedCountry = string.Empty;
+    private string _selectedCurrency = string.Empty;
+    private ConvertedPurchaseTransactionDto? _result;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _countries = await ApiClient.GetCountriesAsync();
+        }
+        catch (PurchasingApiException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task OnCountryChangedAsync()
+    {
+        _currencies = null;
+        _selectedCurrency = string.Empty;
+
+        if (string.IsNullOrEmpty(_selectedCountry))
+            return;
+
+        try
+        {
+            _currencies = await ApiClient.GetCurrenciesAsync(_selectedCountry, Transaction.TransactionDate);
+        }
+        catch (PurchasingApiException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task ConvertClickedAsync()
+    {
+        if (string.IsNullOrEmpty(_selectedCountry) || string.IsNullOrEmpty(_selectedCurrency))
+        {
+            _errorMessage = "Select a country and currency first.";
+            return;
+        }
+
+        try
+        {
+            _result = await ApiClient.GetConversionAsync(Transaction.Id, _selectedCountry, _selectedCurrency);
+            _errorMessage = null;
+        }
+        catch (PurchasingApiException ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+}

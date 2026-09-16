@@ -14,6 +14,8 @@ Please see the following documents:
 - [ClassDiagram.png](Design/ClassDiagram.png)
 - [CodingStandards.md](Design/CodingStandards.md)
 
+- [ClaudeUsage.md](Design/ClaudeUsage.md)
+
 
 ## Running it
 

@@ -20,9 +20,9 @@ Please see the following documents:
 ## Running it
 
 ### 1. Get the code
-```
+
 Clone the code to your local machine using the Code option above
-```
+
 
 ### 2. Start the API
 ```

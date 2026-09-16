@@ -12,20 +12,17 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "ExchangeRateQuotes",
+                name: "CurrencyOptions",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Country = table.Column<string>(type: "TEXT", nullable: false),
-                    CurrencyName = table.Column<string>(type: "TEXT", nullable: false),
-                    RecordDate = table.Column<DateOnly>(type: "TEXT", nullable: false),
-                    ExchangeRate = table.Column<decimal>(type: "TEXT", precision: 18, scale: 6, nullable: false),
-                    FetchedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    CurrencyName = table.Column<string>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ExchangeRateQuotes", x => x.Id);
+                    table.PrimaryKey("PK_CurrencyOptions", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -45,18 +42,17 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExchangeRateQuotes_Country_CurrencyName_RecordDate",
-                table: "ExchangeRateQuotes",
-                columns: new[] { "Country", "CurrencyName", "RecordDate" },
-                unique: true,
-                descending: new[] { false, false, true });
+                name: "IX_CurrencyOptions_Country_CurrencyName",
+                table: "CurrencyOptions",
+                columns: new[] { "Country", "CurrencyName" },
+                unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "ExchangeRateQuotes");
+                name: "CurrencyOptions");
 
             migrationBuilder.DropTable(
                 name: "PurchaseTransactions");

@@ -11,7 +11,7 @@ using Wex.PurchasingPlatform.Api.Data;
 namespace Wex.PurchasingPlatform.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260915215226_InitialCreate")]
+    [Migration("20260916001354_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");
 
-            modelBuilder.Entity("Wex.PurchasingPlatform.Api.Entities.ExchangeRateQuote", b =>
+            modelBuilder.Entity("Wex.PurchasingPlatform.Api.Entities.CurrencyOption", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -34,23 +34,12 @@ namespace Wex.PurchasingPlatform.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("ExchangeRate")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("FetchedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateOnly>("RecordDate")
-                        .HasColumnType("TEXT");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("Country", "CurrencyName", "RecordDate")
-                        .IsUnique()
-                        .IsDescending(false, false, true);
+                    b.HasIndex("Country", "CurrencyName")
+                        .IsUnique();
 
-                    b.ToTable("ExchangeRateQuotes");
+                    b.ToTable("CurrencyOptions");
                 });
 
             modelBuilder.Entity("Wex.PurchasingPlatform.Api.Entities.PurchaseTransaction", b =>

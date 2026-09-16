@@ -8,12 +8,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     private const int DescriptionMaxLength = 50;
     private const int PurchaseAmountPrecision = 18;
     private const int PurchaseAmountScale = 2;
-    private const int ExchangeRatePrecision = 18;
-    private const int ExchangeRateScale = 6;
 
     public DbSet<PurchaseTransaction> PurchaseTransactions => Set<PurchaseTransaction>();
 
-    public DbSet<ExchangeRateQuote> ExchangeRateQuotes => Set<ExchangeRateQuote>();
+    public DbSet<CurrencyOption> CurrencyOptions => Set<CurrencyOption>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,22 +27,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasPrecision(PurchaseAmountPrecision, PurchaseAmountScale);
         });
 
-        modelBuilder.Entity<ExchangeRateQuote>(entity =>
+        modelBuilder.Entity<CurrencyOption>(entity =>
         {
-            entity.HasKey(quote => quote.Id);
+            entity.HasKey(option => option.Id);
 
-            entity.Property(quote => quote.Country)
+            entity.Property(option => option.Country)
                 .IsRequired();
 
-            entity.Property(quote => quote.CurrencyName)
+            entity.Property(option => option.CurrencyName)
                 .IsRequired();
 
-            entity.Property(quote => quote.ExchangeRate)
-                .HasPrecision(ExchangeRatePrecision, ExchangeRateScale);
-
-            entity.HasIndex(quote => new { quote.Country, quote.CurrencyName, quote.RecordDate })
-                .IsUnique()
-                .IsDescending(false, false, true);
+            entity.HasIndex(option => new { option.Country, option.CurrencyName })
+                .IsUnique();
         });
     }
 }

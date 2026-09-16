@@ -2,7 +2,7 @@
 
 Companion to [`TechnicalDesign.md`](./TechnicalDesign.md). Covers the controller, service, repository, entity, and DTO layers, and how they connect. Everything except the DTOs (`ConvertedPurchaseTransactionDto` etc., in the `Models` project) lives in the `Api` project as folders — see `TechnicalDesign.md` §1–§2 for the physical layout; this diagram shows the logical layering regardless of which folder each class sits in. `Guid`/`DateOnly`/`decimal` are used throughout for identifiers, dates, and money per the financial-rigor requirement.
 
-**Note on generics:** Mermaid's class diagram syntax renders `IRepository~TEntity~` as an open generic. In code, `IPurchaseTransactionRepository` and `IExchangeRateRepository` each close it over a concrete entity (`IRepository<PurchaseTransaction>` and `IRepository<ExchangeRateQuote>` respectively) — shown generically here for readability.
+**Note on generics:** Mermaid's class diagram syntax renders `IRepository~TEntity~` as an open generic. In code, `IPurchaseTransactionRepository` and `ICurrencyOptionRepository` each close it over a concrete entity (`IRepository<PurchaseTransaction>` and `IRepository<CurrencyOption>` respectively) — shown generically here for readability.
 
 ![Class diagram](./ClassDiagram.svg)
 
@@ -24,12 +24,10 @@ classDiagram
 
     class CurrenciesController {
         -ICurrencyConversionService conversionService
-        +GetAvailableCurrencies(DateOnly transactionDate) ActionResult~List~CurrencyOptionDto~~
-    }
-
-    class ExchangeRatesController {
-        -IExchangeRateSyncService syncService
-        +TriggerSync() ActionResult
+        -ICurrencyOptionCacheService cacheService
+        +GetCountries() ActionResult~List~string~~
+        +GetAvailableCurrencies(string country, DateOnly transactionDate) ActionResult~List~CurrencyOptionDto~~
+        +TriggerRefresh() ActionResult
     }
 
     %% ---------- Application / service layer ----------
@@ -51,13 +49,14 @@ classDiagram
     class ICurrencyConversionService {
         <<interface>>
         +GetConvertedAsync(Guid transactionId, string country, string currencyName) Task~ConvertedPurchaseTransactionDto~
-        +GetAvailableCurrenciesAsync(DateOnly transactionDate) Task~List~CurrencyOptionDto~~
+        +GetAvailableCurrenciesAsync(string country, DateOnly transactionDate) Task~List~CurrencyOptionDto~~
     }
 
     class CurrencyConversionService {
         -IPurchaseTransactionRepository transactionRepository
-        -IExchangeRateRepository exchangeRateRepository
-        -SelectRate(List~ExchangeRateQuote~ quotes, DateOnly transactionDate) RateSelectionResult
+        -ICurrencyOptionRepository currencyOptionRepository
+        -IExchangeRateProvider exchangeRateProvider
+        -SelectRate(ExchangeRateLookupResult quote, DateOnly transactionDate) RateSelectionResult
     }
 
     class RateSelectionResult {
@@ -66,19 +65,20 @@ classDiagram
         +bool IsStale
     }
 
-    class IExchangeRateSyncService {
+    class ICurrencyOptionCacheService {
         <<interface>>
-        +SyncAsync(CancellationToken ct) Task
+        +RefreshAsync(CancellationToken ct) Task
     }
 
-    class ExchangeRateSyncService {
-        -IExchangeRateRepository exchangeRateRepository
+    class CurrencyOptionCacheService {
+        -ICurrencyOptionRepository currencyOptionRepository
         -IExchangeRateProvider exchangeRateProvider
     }
 
-    class ExchangeRateSyncHostedService {
+    class CurrencyOptionCacheHostedService {
         <<BackgroundService>>
-        -IExchangeRateSyncService syncService
+        -ICurrencyOptionCacheService cacheService
+        -ICurrencyOptionRepository currencyOptionRepository
         +StartAsync(CancellationToken ct) Task
     }
 
@@ -102,24 +102,30 @@ classDiagram
 
     class PurchaseTransactionRepository
 
-    class IExchangeRateRepository {
+    class ICurrencyOptionRepository {
         <<interface>>
-        +GetRatesOnOrBeforeAsync(string country, string currencyName, DateOnly date) Task~List~ExchangeRateQuote~~
-        +UpsertRangeAsync(List~ExchangeRateQuote~ quotes) Task
-        +GetDistinctCurrencyOptionsAsync(DateOnly onOrBeforeDate) Task~List~CurrencyOptionDto~~
-        +GetLatestRecordDateAsync() Task~DateOnly?~
+        +GetByCountryAsync(string country) Task~List~CurrencyOption~~
+        +ReplaceAllAsync(List~CurrencyOption~ options) Task
     }
 
-    class ExchangeRateRepository
+    class CurrencyOptionRepository
 
     %% ---------- External integration ----------
     class IExchangeRateProvider {
         <<interface>>
-        +FetchRatesAsync(DateTime sinceUtc) Task~List~ExchangeRateQuote~~
+        +GetLatestRateOnOrBeforeAsync(string country, string currencyName, DateOnly onOrBeforeDate) Task~ExchangeRateLookupResult~
+        +FetchAllCurrencyOptionsAsync() Task~List~CurrencyOptionDto~~
     }
 
     class TreasuryExchangeRateClient {
         -HttpClient httpClient
+    }
+
+    class ExchangeRateLookupResult {
+        +string Country
+        +string CurrencyName
+        +DateOnly RecordDate
+        +decimal ExchangeRate
     }
 
     %% ---------- Domain entities ----------
@@ -131,13 +137,10 @@ classDiagram
         +DateTime CreatedAtUtc
     }
 
-    class ExchangeRateQuote {
+    class CurrencyOption {
         +int Id
         +string Country
         +string CurrencyName
-        +DateOnly RecordDate
-        +decimal ExchangeRate
-        +DateTime FetchedAtUtc
     }
 
     %% ---------- Models (DTOs) ----------
@@ -182,33 +185,36 @@ classDiagram
     PurchaseTransactionsController --> IPurchaseTransactionService
     PurchaseTransactionsController --> ICurrencyConversionService
     CurrenciesController --> ICurrencyConversionService
-    ExchangeRatesController --> IExchangeRateSyncService
+    CurrenciesController --> ICurrencyOptionCacheService
 
     IPurchaseTransactionService <|.. PurchaseTransactionService
     ICurrencyConversionService <|.. CurrencyConversionService
 
     PurchaseTransactionService --> IPurchaseTransactionRepository
     CurrencyConversionService --> IPurchaseTransactionRepository
-    CurrencyConversionService --> IExchangeRateRepository
+    CurrencyConversionService --> ICurrencyOptionRepository
+    CurrencyConversionService --> IExchangeRateProvider
     CurrencyConversionService ..> RateSelectionResult
+    CurrencyConversionService ..> ExchangeRateLookupResult
 
-    IExchangeRateSyncService <|.. ExchangeRateSyncService
-    ExchangeRateSyncHostedService --> IExchangeRateSyncService
-    ExchangeRateSyncService --> IExchangeRateRepository
-    ExchangeRateSyncService --> IExchangeRateProvider
+    ICurrencyOptionCacheService <|.. CurrencyOptionCacheService
+    CurrencyOptionCacheHostedService --> ICurrencyOptionCacheService
+    CurrencyOptionCacheHostedService --> ICurrencyOptionRepository
+    CurrencyOptionCacheService --> ICurrencyOptionRepository
+    CurrencyOptionCacheService --> IExchangeRateProvider
 
     IRepository~TEntity~ <|-- IPurchaseTransactionRepository
-    IRepository~TEntity~ <|-- IExchangeRateRepository
+    IRepository~TEntity~ <|-- ICurrencyOptionRepository
     IRepository~TEntity~ <|.. Repository~TEntity~
     Repository~TEntity~ <|-- PurchaseTransactionRepository
-    Repository~TEntity~ <|-- ExchangeRateRepository
+    Repository~TEntity~ <|-- CurrencyOptionRepository
     IPurchaseTransactionRepository <|.. PurchaseTransactionRepository
-    IExchangeRateRepository <|.. ExchangeRateRepository
+    ICurrencyOptionRepository <|.. CurrencyOptionRepository
 
     IExchangeRateProvider <|.. TreasuryExchangeRateClient
 
     PurchaseTransactionRepository ..> PurchaseTransaction
-    ExchangeRateRepository ..> ExchangeRateQuote
+    CurrencyOptionRepository ..> CurrencyOption
 
     PurchaseTransactionService ..> PurchaseTransactionDto
     PurchaseTransactionService ..> CreatePurchaseTransactionRequest
@@ -219,6 +225,8 @@ classDiagram
 
 ## Changelog
 
-- Added `ExchangeRateSyncService`, `ExchangeRateSyncHostedService`, and `ExchangeRatesController` for the proactive exchange-rate sync.
-- Removed the `ExchangeRateSyncState` entity; its watermark is now `IExchangeRateRepository.GetLatestRecordDateAsync()`.
+- Reversed the proactive exchange-rate sync in favor of live per-request lookups (see `TechnicalDesign.md`'s changelog). Removed `ExchangeRateQuote`, `IExchangeRateRepository`/`ExchangeRateRepository`, `IExchangeRateSyncService`/`ExchangeRateSyncService`/`ExchangeRateSyncHostedService`, and `ExchangeRatesController`.
+- Added `CurrencyOption` (identity-only: `Country` + `CurrencyName`), `ICurrencyOptionRepository`/`CurrencyOptionRepository`, `ICurrencyOptionCacheService`/`CurrencyOptionCacheService`/`CurrencyOptionCacheHostedService`, and `ExchangeRateLookupResult` (the plain, non-persisted result of a single live Treasury lookup). `CurrencyConversionService` now depends on `IExchangeRateProvider` directly instead of a rate repository. `CurrenciesController` gained `GetCountries()` and `TriggerRefresh()`, and `GetAvailableCurrencies` now takes a `country` parameter.
+- ~~Added `ExchangeRateSyncService`, `ExchangeRateSyncHostedService`, and `ExchangeRatesController` for the proactive exchange-rate sync.~~
+- ~~Removed the `ExchangeRateSyncState` entity; its watermark is now `IExchangeRateRepository.GetLatestRecordDateAsync()`.~~
 - Classes reorganized from separate class-library projects into folders within one `Api` project; the diagram's classes and relationships are unchanged by this, only where they physically live (`TechnicalDesign.md` §1–§2).

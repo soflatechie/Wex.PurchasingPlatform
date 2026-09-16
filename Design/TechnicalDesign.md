@@ -28,16 +28,21 @@ Wex.PurchasingPlatform.slnx
 
 ```
 Wex.PurchasingPlatform.Api/
-├── Controllers/         PurchaseTransactionsController, CurrenciesController, ExchangeRatesController
-├── Services/            IPurchaseTransactionService, ICurrencyConversionService, IExchangeRateSyncService
-│                        + their implementations, ExchangeRateSyncHostedService
+├── Controllers/         PurchaseTransactionsController, CurrenciesController
+├── Services/
+│   ├── Interfaces/      IPurchaseTransactionService, ICurrencyConversionService, ICurrencyOptionCacheService
+│   └── Implementation/  PurchaseTransactionService, CurrencyConversionService, CurrencyOptionCacheService, CurrencyOptionCacheHostedService
 ├── Repositories/
-│   ├── Interfaces/      IRepository<T>, IPurchaseTransactionRepository, IExchangeRateRepository
-│   └── Implementation/  Repository<T>, PurchaseTransactionRepository, ExchangeRateRepository
-├── Entities/            PurchaseTransaction, ExchangeRateQuote
+│   ├── Interfaces/      IRepository<T>, IPurchaseTransactionRepository, ICurrencyOptionRepository
+│   └── Implementation/  Repository<T>, PurchaseTransactionRepository, CurrencyOptionRepository
+├── Entities/            PurchaseTransaction, CurrencyOption
 ├── Data/                AppDbContext, EF Core configuration, migrations
-├── ExternalServices/    IExchangeRateProvider, TreasuryExchangeRateClient
+├── ExternalServices/
+│   ├── Interfaces/      IExchangeRateProvider
+│   └── Implementation/  TreasuryExchangeRateClient
+├── Common/              MoneyRounding
 ├── Validation/          FluentValidation validators
+├── Middleware/          ValidationExceptionHandler (maps exceptions to ProblemDetails)
 └── Program.cs           DI registration, middleware, Swagger, auth configuration
 ```
 
@@ -50,6 +55,8 @@ Controller  →  Service  →  Repository  →  AppDbContext  →  SQLite
    │
    └──  only ever sees DTOs (Models project) in and out
 ```
+
+`CurrencyConversionService` calls `IExchangeRateProvider` directly, live, once per conversion or per candidate-currency check (§5, §10) — there is no sync layer sitting between it and Treasury.
 
 ## 3. Models (DTOs)
 
@@ -81,20 +88,20 @@ public interface IRepository<TEntity> where TEntity : class
 ```
 
 - `Repository<TEntity> : IRepository<TEntity>` is the EF Core implementation. It holds `AppDbContext` and calls `SaveChangesAsync` on every write.
-- `IPurchaseTransactionRepository : IRepository<PurchaseTransaction>` and `IExchangeRateRepository : IRepository<ExchangeRateQuote>` both extend `IRepository<TEntity>`. `IExchangeRateRepository` adds three exchange-rate-specific queries: most-recent-rate-on-or-before-a-date, distinct country/currency pairs available as of a date, and the latest stored `record_date`.
-- `PurchaseTransactionRepository : Repository<PurchaseTransaction>, IPurchaseTransactionRepository` and `ExchangeRateRepository : Repository<ExchangeRateQuote>, IExchangeRateRepository` are the two concrete classes, registered in DI against their interfaces.
+- `IPurchaseTransactionRepository : IRepository<PurchaseTransaction>` and `ICurrencyOptionRepository : IRepository<CurrencyOption>` both extend `IRepository<TEntity>`. `ICurrencyOptionRepository` adds one extra query, `GetByCountryAsync(country)`, used to fetch a country's candidate currency names before live-checking each against Treasury.
+- `PurchaseTransactionRepository : Repository<PurchaseTransaction>, IPurchaseTransactionRepository` and `CurrencyOptionRepository : Repository<CurrencyOption>, ICurrencyOptionRepository` are the two concrete classes, registered in DI against their interfaces.
 
-`IExchangeRateRepository.GetLatestRecordDateAsync()` (a `MAX(RecordDate)` query) is how the sync service finds the newest data already stored. Full method signatures are in `ClassDiagram.md`; schema in `DatabaseDesign.md`.
+There is no exchange-rate repository or table at all — rates are never persisted locally (see §10). `CurrencyOption` only ever holds identity data (`Country`, `CurrencyName`). Full method signatures are in `ClassDiagram.md`; schema in `DatabaseDesign.md`.
 
 ## 5. Service layer
 
 Three services, each depending only on repository interfaces:
 
 - **`IPurchaseTransactionService` / `PurchaseTransactionService`** — create/read/update/delete for transactions: field validation (FluentValidation), rounding the purchase amount, mapping entity ↔ `PurchaseTransactionDto`.
-- **`ICurrencyConversionService` / `CurrencyConversionService`** — reads against the synced `ExchangeRateQuote` table via `IExchangeRateRepository`. `GetConvertedAsync` loads the transaction (via `IPurchaseTransactionRepository`), applies the rate-selection rule from `InitialDesign.md` §2.2 (most recent rate on or before the transaction date, flagged `isStale` past Treasury's documented 3-month window), and produces `ConvertedPurchaseTransactionDto`. `GetAvailableCurrenciesAsync` returns the country/currency pairs with a usable rate as of a given date, for the front end's cascading dropdown.
-- **`IExchangeRateSyncService` / `ExchangeRateSyncService`** — the only consumer of `IExchangeRateProvider` (the Treasury HTTP client). `SyncAsync` calls `IExchangeRateRepository.GetLatestRecordDateAsync()`, fetches anything newer from Treasury, and upserts it into `ExchangeRateQuote`. Runs from `ExchangeRateSyncHostedService` (a `BackgroundService`) once at API startup — see §8.1.
+- **`ICurrencyConversionService` / `CurrencyConversionService`** — calls `IExchangeRateProvider` directly and live, once per request; no local rate table is read. `GetConvertedAsync` loads the transaction (via `IPurchaseTransactionRepository`), calls `IExchangeRateProvider.GetLatestRateOnOrBeforeAsync(country, currencyName, transaction.TransactionDate)`, applies the rate-selection rule from `InitialDesign.md` §2.2 (most recent rate on or before the transaction date, flagged `isStale` past Treasury's documented 3-month window) to whatever single row comes back, and produces `ConvertedPurchaseTransactionDto`. `GetAvailableCurrenciesAsync(country, transactionDate)` reads that country's candidate currency names from `ICurrencyOptionRepository` (the small local identity cache) and live-checks each one against `IExchangeRateProvider` to filter down to what's actually usable as of that date.
+- **`ICurrencyOptionCacheService` / `CurrencyOptionCacheService`** — the only consumer of `IExchangeRateProvider.FetchAllCurrencyOptionsAsync()`. `RefreshAsync` replaces the contents of `CurrencyOption` with the full distinct `(Country, CurrencyName)` set Treasury currently publishes — identity only, never rate values. Runs from `CurrencyOptionCacheHostedService` (a `BackgroundService`) at API startup **only if `CurrencyOption` is empty** (i.e., once, ever, on a fresh database) — see §8.1.
 
-`PurchaseTransactionsController` and `CurrenciesController` call `IPurchaseTransactionService`/`ICurrencyConversionService`. `ExchangeRatesController` calls `IExchangeRateSyncService` for `POST /api/exchange-rates/sync` (§6).
+`PurchaseTransactionsController` and `CurrenciesController` call `IPurchaseTransactionService`/`ICurrencyConversionService`. `CurrenciesController` also calls `ICurrencyOptionCacheService` for `POST /api/currencies/refresh` (§6).
 
 ## 6. API surface
 
@@ -105,9 +112,10 @@ Three services, each depending only on repository interfaces:
 | GET | `/api/purchasetransactions/{id}` | — | `200` + `PurchaseTransactionDto` / `404` | required when enabled |
 | PUT | `/api/purchasetransactions/{id}` | `UpdatePurchaseTransactionRequest` | `200` + `PurchaseTransactionDto` / `404` | required when enabled |
 | DELETE | `/api/purchasetransactions/{id}` | — | `204` / `404` | required when enabled |
-| GET | `/api/purchasetransactions/{id}/conversion` | query: `country`, `currency` | `200` + `ConvertedPurchaseTransactionDto` / `404` (no transaction) / `422` (no rate ever available) | required when enabled |
-| GET | `/api/currencies` | query: `transactionDate` | `200` + `CurrencyOptionDto[]` | required when enabled |
-| POST | `/api/exchange-rates/sync` | — | `202` (sync kicked off) | required when enabled |
+| GET | `/api/purchasetransactions/{id}/conversion` | query: `country`, `currency` | `200` + `ConvertedPurchaseTransactionDto` / `404` (no transaction) / `422` (no rate ever published for that currency on/before the transaction date) / `502` (Treasury unreachable) | required when enabled |
+| GET | `/api/countries` | — | `200` + `string[]` (distinct countries in the local identity cache; no live Treasury call) | required when enabled |
+| GET | `/api/currencies` | query: `country`, `transactionDate` | `200` + `CurrencyOptionDto[]` (that country's cached currencies, live-checked and filtered to what's usable as of `transactionDate`) | required when enabled |
+| POST | `/api/currencies/refresh` | — | `202` (identity-cache refresh kicked off) | required when enabled |
 
 Validation failures return `400` with an RFC 7807 `ProblemDetails` body (field name → message), from a shared exception-handling middleware.
 
@@ -119,30 +127,35 @@ Validation failures return `400` with an RFC 7807 `ProblemDetails` body (field n
 
 ## 8. Request flow examples (sequence diagrams)
 
-### 8.1 Startup sync
+### 8.1 Startup currency-identity cache bootstrap (one-time)
 
-Runs once when the API process starts, and on demand via `POST /api/exchange-rates/sync` (§6).
+Runs when the API process starts, but only does anything the very first time (or after a manual refresh) — see §10.
 
 ```mermaid
 sequenceDiagram
-    participant Host as ExchangeRateSyncHostedService
-    participant SyncSvc as ExchangeRateSyncService
-    participant RateRepo as IExchangeRateRepository
+    participant Host as CurrencyOptionCacheHostedService
+    participant CacheSvc as CurrencyOptionCacheService
+    participant OptionRepo as ICurrencyOptionRepository
     participant Treasury as IExchangeRateProvider
     participant DB as SQLite
 
-    Host->>SyncSvc: SyncAsync()
-    SyncSvc->>RateRepo: GetLatestRecordDateAsync()
-    RateRepo->>DB: SELECT MAX(RecordDate) FROM ExchangeRateQuote
-    DB-->>RateRepo: latest date (or null, on first run)
-    RateRepo-->>SyncSvc: latest date
+    Host->>OptionRepo: GetAllAsync()
+    OptionRepo->>DB: SELECT * FROM CurrencyOption
+    DB-->>OptionRepo: rows (or none, on a fresh database)
+    OptionRepo-->>Host: rows
 
-    SyncSvc->>Treasury: FetchRatesAsync(sinceDate: latest date)
-    Treasury-->>SyncSvc: new/changed quotes (paged; looped until exhausted)
-
-    SyncSvc->>RateRepo: UpsertRangeAsync(quotes)
-    RateRepo->>DB: INSERT/UPDATE ExchangeRateQuote rows
+    alt CurrencyOption already populated
+        Host-->>Host: skip — no Treasury call this run
+    else empty (first run ever, or a manual refresh request)
+        Host->>CacheSvc: RefreshAsync()
+        CacheSvc->>Treasury: FetchAllCurrencyOptionsAsync()
+        Treasury-->>CacheSvc: distinct (Country, CurrencyName) pairs (paged, field-selected — identity only, no rates)
+        CacheSvc->>OptionRepo: ReplaceAllAsync(options)
+        OptionRepo->>DB: DELETE + INSERT CurrencyOption rows
+    end
 ```
+
+`POST /api/currencies/refresh` (§6) calls `CurrencyOptionCacheService.RefreshAsync()` directly, forcing the `else` branch on demand.
 
 ### 8.2 Conversion request
 
@@ -152,7 +165,7 @@ sequenceDiagram
     participant Controller as PurchaseTransactionsController
     participant ConvSvc as CurrencyConversionService
     participant TxRepo as IPurchaseTransactionRepository
-    participant RateRepo as IExchangeRateRepository
+    participant Treasury as IExchangeRateProvider
     participant DB as SQLite
 
     Client->>Controller: GET /api/purchasetransactions/{id}/conversion?country=..&currency=..
@@ -162,33 +175,32 @@ sequenceDiagram
     DB-->>TxRepo: row
     TxRepo-->>ConvSvc: PurchaseTransaction
 
-    ConvSvc->>RateRepo: GetRatesOnOrBeforeAsync(country, currency, transactionDate)
-    RateRepo->>DB: SELECT ExchangeRateQuote
-    DB-->>RateRepo: quotes
-    RateRepo-->>ConvSvc: quotes
+    ConvSvc->>Treasury: GetLatestRateOnOrBeforeAsync(country, currency, transactionDate)
+    Treasury-->>ConvSvc: single rate row (or none)
 
-    ConvSvc->>ConvSvc: SelectRate(quotes, transactionDate)<br/>apply 3-month staleness rule
+    ConvSvc->>ConvSvc: apply 3-month staleness rule to that one row
     ConvSvc-->>Controller: ConvertedPurchaseTransactionDto
     Controller-->>Client: 200 OK (JSON)
 ```
 
-`GET /api/currencies` follows the same shape minus the transaction lookup: `CurrenciesController` → `CurrencyConversionService.GetAvailableCurrenciesAsync` → `IExchangeRateRepository` → SQLite.
+`GET /api/currencies?country=..&transactionDate=..` follows a similar shape: `CurrenciesController` → `CurrencyConversionService.GetAvailableCurrenciesAsync` → `ICurrencyOptionRepository.GetByCountryAsync(country)` (local, cheap) → one `IExchangeRateProvider.GetLatestRateOnOrBeforeAsync` call per candidate currency (bounded by that country's currency count, typically 1–3) → filtered `CurrencyOptionDto[]`.
 
 ## 9. Cross-cutting concerns
 
 - **Validation**: FluentValidation validators in `Validation/`, one per request DTO, called by the service before the repository.
-- **Error handling**: one exception-handling middleware maps exceptions to RFC 7807 `ProblemDetails` (`400` validation, `404` not found, `422` no rate available).
+- **Error handling**: one exception-handling middleware maps exceptions to RFC 7807 `ProblemDetails` (`400` validation, `404` not found, `422` no rate ever published for that currency on/before the transaction date, `502` Treasury unreachable at request time).
 - **Auth**: Microsoft Entra ID OAuth 2.0/OIDC, JWT bearer validation via `Microsoft.Identity.Web`, gated by `Authentication:Enabled` (default `false`) — see `InitialDesign.md` §2.4.
 - **Money/rounding**: all rounding goes through `MoneyRounding.ToCurrency(decimal value)`.
-- **Logging**: `Microsoft.Extensions.Logging` (`ILogger<T>`), configured via the `Logging` section of `appsettings.json` — Console and Debug providers, no third-party logging library. The exception-handling middleware logs every unhandled exception it converts to a `ProblemDetails` response. `ExchangeRateSyncService` logs each sync run's start, row count, and outcome. `CurrencyConversionService` logs when it returns a stale rate.
+- **Logging**: `Microsoft.Extensions.Logging` (`ILogger<T>`), configured via the `Logging` section of `appsettings.json` — Console and Debug providers, no third-party logging library. The exception-handling middleware logs every unhandled exception it converts to a `ProblemDetails` response. `CurrencyOptionCacheService` logs the one-time identity-cache refresh's start, row count, and outcome. `CurrencyConversionService` logs each live Treasury lookup's outcome (rate found/stale/not-found) and any Treasury-unreachable failure.
 
-## 10. Exchange rate sync — size and performance
+## 10. Exchange rate lookups — size and performance
 
-The Treasury dataset is quarterly from March 2001 onward at roughly 150–190 rows per release — a full history of **15,000–20,000 rows**. The first-run sync pulls all of it, not a recent window: at this size, a full pull and a windowed pull cost about the same (a few seconds, a few MB), but a windowed pull would need a second code path to backfill any transaction dated outside the window — full history avoids that case entirely instead of deferring it.
+No exchange-rate *values* are ever stored locally. The Treasury dataset is quarterly from March 2001 onward at roughly 150–190 rows per release — a full history of **15,000–20,000 rows** — but a given conversion only ever needs the single most recent row for one specific `(country, currency)` on or before one specific date. Pulling and maintaining the other ~14,999 rows to answer that one question is pure overhead: it costs startup time and disk space, and — since Treasury can revise published data with no change notification — carries a real risk of silently serving a stale local copy with no way to detect the drift.
 
-- `IExchangeRateRepository.GetLatestRecordDateAsync()` returns `null` only on the first startup against an empty database, which triggers the one full historical pull. Every later startup fetches only `record_date` values newer than what's stored — at most one new quarterly release.
-- `TreasuryExchangeRateClient.FetchRatesAsync` pages through the Treasury API until exhausted. Writes are batched: one `AddRangeAsync` (chunked, e.g. 1,000 rows) per batch, one `SaveChangesAsync` per batch.
-- The sync runs in a startup `BackgroundService`, not inline in the request pipeline: `PurchaseTransaction` CRUD (Requirement #1) works even if the initial sync fails or Treasury is unreachable. A failed sync is logged and retried on the next manual `POST /api/exchange-rates/sync` or process restart.
+- **Per-conversion lookup**: `TreasuryExchangeRateClient.GetLatestRateOnOrBeforeAsync` makes one HTTP call with server-side `filter`/`sort`/`page[size]=1` parameters, so Treasury itself does the narrowing and the response is a single row. Latency is dominated by the network round-trip (typically well under a second), not data volume.
+- **Currency identity cache**: `CurrencyOption` holds only `(Country, CurrencyName)` — the universe of values Treasury has ever published, not their rates or dates. It's populated by exactly one field-selected crawl (`FetchAllCurrencyOptionsAsync`, requesting only the `country`/`currency` fields to keep the payload small), and that crawl runs **at most once**, guarded by "table is empty" — not on every startup. `POST /api/currencies/refresh` (§6) re-runs it manually if Treasury ever adds a new currency.
+- **Currency picker**: `GET /api/currencies?country=..` reads that country's cached candidate names (typically 1–3, per `InitialDesign.md` §2.2's Eurozone/legacy-currency discussion) and live-checks each against Treasury — a handful of single-row lookups, not a scan of the full dataset.
+- **Availability trade-off**: Requirement #2's endpoints now depend on Treasury being reachable at request time; an outage there returns `502` (§6/§9) instead of degrading to a stale local copy. Requirement #1 (storing transactions) never touches Treasury and is unaffected either way.
 
 ## 11. Coding standards
 
@@ -199,7 +211,7 @@ All C# code follows `CodingStandards.txt`. Standards that directly shape this de
 - One type per file, file-scoped namespaces, explicit access modifiers on every member.
 - No swallowed exceptions — the exception-handling middleware (§9) logs and maps every exception it catches; it never discards one.
 - No magic numbers/strings — the 3-month staleness window (`InitialDesign.md` §2.2) and the description length limit (50 chars) are named constants, not literals repeated through the code.
-- Log messages describe outcomes, not steps (§9) — e.g., "sync completed: 187 rows" rather than "starting sync."
+- Log messages describe outcomes, not steps (§9) — e.g., "currency identity cache refreshed: 243 pairs" rather than "starting refresh."
 - Interfaces are `I`-prefixed, classes/methods/properties are PascalCase, parameters/locals are camelCase, private fields are `_camelCase` — already the convention throughout `ClassDiagram.md`.
 
 ## Changelog
@@ -214,4 +226,7 @@ All C# code follows `CodingStandards.txt`. Standards that directly shape this de
 - Added logging (§9) using `Microsoft.Extensions.Logging`.
 - `Repositories/` split into `Interfaces/` and `Implementation/` subfolders.
 - Constructor-injected classes use C# primary constructors.
+- `Services/` and `ExternalServices/` split into `Interfaces/`/`Implementation/`, matching `Repositories/`.
+- Added `Common/` for shared stateless helpers (`MoneyRounding`).
+- Reversed the earlier "per-request caching → proactive full sync" decision (see `DatabaseDesign.md`'s changelog) back to live per-request lookups, since a locally cached copy can silently drift from what Treasury currently publishes with no way to detect it. This time only currency *identities* (`Country`, `CurrencyName` — no rates, no dates) are cached, in a small `CurrencyOption` table populated by a one-time crawl, so the currency picker doesn't have to live-query Treasury for every currency that's ever existed on every request. Removed `ExchangeRateQuote`, `IExchangeRateRepository`/`ExchangeRateRepository`, `IExchangeRateSyncService`/`ExchangeRateSyncService`/`ExchangeRateSyncHostedService`, `ExchangeRatesController`, and `POST /api/exchange-rates/sync`. Added `CurrencyOption`, `ICurrencyOptionRepository`/`CurrencyOptionRepository`, `ICurrencyOptionCacheService`/`CurrencyOptionCacheService`/`CurrencyOptionCacheHostedService`, `GET /api/countries`, and `POST /api/currencies/refresh`; `GET /api/currencies` now takes a required `country` query param.
 

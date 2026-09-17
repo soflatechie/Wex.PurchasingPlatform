@@ -17,12 +17,17 @@ Please see the following documents:
 - [ClaudeUsage.md](Design/ClaudeUsage.md)
 
 
-## Running it - Installing from zip file
-1. Get the code from Github
+## Running it - Installing from a pre-built release (fastest, nothing to install)
 
-2. Go to the /Publish folder.  Copy the Wex.PurchasingPlatform-Release.zip file that you see there to somewhere outside of the repo.  
+This is the quickest way to see the app running — no git clone and no .NET SDK required, since the executables are self-contained (the .NET runtime is bundled in).
 
-3. Extract the zip file and run the launch.bat file by clicking it or from the command line.  This will launch the api and both of the client apps.  If you have issues, you may have to run your command as administrator.
+1. Go to the [Releases](https://github.com/soflatechie/Wex.PurchasingPlatform/releases) page of this repository and download `Wex.PurchasingPlatform-Release.zip` from the latest release.
+2. Extract the zip to any folder on your machine.
+3. Double-click `Launch.bat` inside the extracted folder. This starts the API, waits until it's actually ready to serve requests, then opens the Desktop app and the Web app (your default browser opens automatically) — one click, no manual steps in between.
+
+When you're done: close the Desktop window, then press Enter in the console window that's still open — that stops the API and Web app.
+
+**If Windows shows "Windows protected your PC"**: click **More info**, then **Run anyway**. This is Microsoft Defender SmartScreen reacting to an unsigned executable downloaded from the internet — it's a warning, not an error, and only appears the first time you run each `.exe`. Admin rights are not required; the apps only bind to local ports and don't need elevation.
 
 
 ## Running it - Using Repo code

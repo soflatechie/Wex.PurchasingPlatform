@@ -17,7 +17,15 @@ Please see the following documents:
 - [ClaudeUsage.md](Design/ClaudeUsage.md)
 
 
-## Running it
+## Running it - Installing from zip file
+1. Get the code from Github
+
+2. Go to the /Publish folder.  Copy the Wex.PurchasingPlatform-Release.zip file that you see there to somewhere outside of the repo.  
+
+3. Extract the zip file and run the launch.bat file by clicking it or from the command line.  This will launch the api and both of the client apps.  If you have issues, you may have to run your command as administrator.
+
+
+## Running it - Using Repo code
 
 ### 1. Get the code
 
@@ -64,6 +72,7 @@ dotnet run --project src/Wex.PurchasingPlatform.Web --launch-profile https
 
 Wait for `Now listening on: https://localhost:7054` in the output, then manually open a browser and go to:
 - <https://localhost:7054>
+
 
 ### Troubleshooting
 

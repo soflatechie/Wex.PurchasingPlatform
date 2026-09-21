@@ -1,6 +1,6 @@
 # WEX Purchasing Platform
 
-A project implementing two requirements from the hiring exercise
+A project implementing two requirements from the exercise
 
 ## Project artifacts
 
